@@ -4,24 +4,13 @@ from __future__ import annotations
 import argparse
 
 from .config import load_azure_openai_client
-from .ai import extract_product_snapshot
-from .scraper import fetch_page, extract_visible_text
+from .ai.agentic_analyzer import extract_product_snapshot_agentic
 
 
 def scrape_and_analyze(url: str, out_path: str | None = None) -> str:
-    """Fetch a page, extract text, and analyze with LLM to produce product snapshot.
-    
-    Args:
-        url: Target URL to scrape
-        out_path: Optional file path to write JSON output
-        
-    Returns:
-        JSON string of ProductSnapshot
-    """
+    """Analyze a product page using agentic function calling."""
     client, deployment = load_azure_openai_client()
-    html = fetch_page(url)
-    page_text = extract_visible_text(html)
-    result = extract_product_snapshot(client, deployment, url, page_text)
+    result = extract_product_snapshot_agentic(client, deployment, url)
     
     payload = result.model_dump_json(indent=2, ensure_ascii=False)
     
