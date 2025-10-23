@@ -18,14 +18,65 @@ Minimal Python prototype for experimenting with agentic scraping backed by Azure
 
 ## Usage
 
+### CLI Mode
+
 ```bash
 python -m src.main https://www.leadspace.com/
 ```
 
-The script prints structured JSON with extracted details. Use `--raw` to also dump the raw text context sent to the LLM, and `--out <path>` to persist the JSON to disk.
+The script prints structured JSON with extracted details. Use `--out <path>` to persist the JSON to disk.
+
+### FastAPI Server
+
+To run the API server:
+
+```bash
+python -m uvicorn src.api:app --reload
+```
+
+The server will start on `http://localhost:8000`.
+
+#### API Endpoints
+
+**Health Check**
+```
+GET /health
+```
+
+**Scrape and Analyze Product**
+```
+POST /scrape
+```
+
+Request body:
+```json
+{
+  "source_url": "https://www.leadspace.com/"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "product_name": "...",
+    "company_name": "...",
+    "website": "...",
+    "overview": "...",
+    ...
+  },
+  "error": null
+}
+```
+
+#### Interactive Documentation
+
+Visit `http://localhost:8000/docs` for Swagger UI documentation or `http://localhost:8000/redoc` for ReDoc documentation.
 
 ## Next Steps
 
 - Swap in Playwright for rich DOM capture when simple HTTP fetches are insufficient.
 - Expand the LLM prompt based on desired schema and add validation/guardrails.
 - Orchestrate multiple agent steps (crawl, segment, vision, etc.).
+- Add rate limiting and caching to the API layer.
