@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import httpx
+from bs4 import BeautifulSoup
 from loguru import logger
 
 
@@ -15,7 +16,7 @@ def fetch_page_text(url: str) -> str:
         raise ValueError(f"Invalid URL: {url}")
     
     headers = {
-        "User-Agent": "product-scraper-prototype/0.1 (+https://example.com)"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     try:
@@ -31,19 +32,30 @@ def fetch_page_text(url: str) -> str:
             "error": f"Failed to fetch URL: {str(e)}"
         })
     
-    from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
     text_chunks = [chunk.strip() for chunk in soup.stripped_strings if chunk.strip()]
     text = " \n".join(text_chunks)
     
-    logger.info(f"Extracted {len(text)} chars from {url}")
+    # Extract all href links with their text
+    links = []
+    for link in soup.find_all("a", href=True):
+        href = link.get("href", "").strip()
+        link_text = link.get_text(strip=True)
+        if href and href != "#":
+            links.append({
+                "href": href,
+                "text": link_text if link_text else "[no text]"
+            })
+    
+    logger.info(f"Extracted {len(text)} chars and {len(links)} links from {url}")
     return json.dumps({
         "success": True,
         "url": url,
         "text": text,
-        "length": len(text)
+        "length": len(text),
+        "links": links
     })
 
 
@@ -53,9 +65,11 @@ def get_fetch_page_text_tool() -> dict:
         "type": "function",
         "name": "fetch_page_text",
         "description": (
-            "Fetch a URL and extract its visible text content. Use this when you need to get "
-            "content from a webpage to complete product analysis tasks. Returns the extracted "
-            "text that can be analyzed for product information."
+            "Fetch a URL and extract its visible text content along with all page links. "
+            "Use this to retrieve content from webpages to complete product analysis tasks. "
+            "Returns the extracted text content, page structure information, and a list of all "
+            "links found on the page (href and link text) which helps you navigate to related pages "
+            "like About, Products, Contact, or other sections to gather comprehensive information."
         ),
         "parameters": {
             "type": "object",
