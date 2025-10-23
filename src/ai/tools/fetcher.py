@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import json
 import httpx
+from loguru import logger
 
 
 def fetch_page_text(url: str) -> str:
     """Fetch a URL and extract visible text content."""
+    logger.debug(f"Fetching URL: {url}")
+    
     if not url.startswith(("http://", "https://")):
+        logger.error(f"Invalid URL format: {url}")
         raise ValueError(f"Invalid URL: {url}")
     
     headers = {
@@ -19,7 +23,9 @@ def fetch_page_text(url: str) -> str:
             response = client.get(url)
             response.raise_for_status()
             html = response.text
+            logger.debug(f"Successfully fetched {len(html)} bytes from {url}")
     except httpx.HTTPError as e:
+        logger.error(f"HTTP error fetching {url}: {str(e)}")
         return json.dumps({
             "success": False,
             "error": f"Failed to fetch URL: {str(e)}"
@@ -32,6 +38,7 @@ def fetch_page_text(url: str) -> str:
     text_chunks = [chunk.strip() for chunk in soup.stripped_strings if chunk.strip()]
     text = " \n".join(text_chunks)
     
+    logger.info(f"Extracted {len(text)} chars from {url}")
     return json.dumps({
         "success": True,
         "url": url,

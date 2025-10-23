@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from openai import AzureOpenAI
+from loguru import logger
 
 from ..schemas.product import ProductSnapshot
 from .tools.fetcher import fetch_page_text, get_fetch_page_text_tool
@@ -33,6 +34,7 @@ def extract_product_snapshot_agentic(
     initial_url: str,
 ) -> ProductSnapshot:
     """Extract product data using agentic function calling."""
+    logger.info(f"Starting agentic extraction for URL: {initial_url}")
     
     # Setup tool registry and handler
     registry = ToolRegistry()
@@ -44,6 +46,7 @@ def extract_product_snapshot_agentic(
     tool_handler = ToolHandler(registry)
     
     tools = registry.get_all_schemas()
+    logger.debug(f"Registered {len(tools)} tool(s)")
     
     messages = [
         {
@@ -63,6 +66,7 @@ def extract_product_snapshot_agentic(
     
     while iteration < max_iterations:
         iteration += 1
+        logger.debug(f"Agentic loop iteration {iteration}/{max_iterations}")
         
         response = client.beta.chat.completions.parse(
             model=deployment,
@@ -73,6 +77,7 @@ def extract_product_snapshot_agentic(
         
         if response.choices[0].message.tool_calls:
             tool_calls = response.choices[0].message.tool_calls
+            logger.info(f"LLM called {len(tool_calls)} tool(s)")
             
             messages.append({
                 "role": "assistant",
@@ -93,11 +98,15 @@ def extract_product_snapshot_agentic(
             tool_results = tool_handler.execute_parallel(tool_calls)
             messages.append(tool_handler.build_tool_response_message(tool_results))
         else:
+            logger.debug("LLM produced final response (no tool calls)")
             parsed = response.choices[0].message.parsed
             if parsed:
+                logger.info("Successfully extracted ProductSnapshot")
                 return parsed
+            logger.warning("LLM response parsed as None")
             break
     
+    logger.error(f"Failed to extract after {max_iterations} iterations")
     raise RuntimeError(
         f"Failed to extract product snapshot after {max_iterations} iterations"
     )

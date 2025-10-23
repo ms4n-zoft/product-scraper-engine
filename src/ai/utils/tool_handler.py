@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from typing import Callable, Any, Optional
 from dataclasses import dataclass
+from loguru import logger
 
 
 @dataclass
@@ -26,6 +27,7 @@ class ToolRegistry:
         """Register a tool with its schema and handler function."""
         self._tools[name] = schema
         self._handlers[name] = handler
+        logger.debug(f"Tool registered: {name}", extra={"handler": handler.__name__})
     
     def get_schema(self, name: str) -> Optional[dict]:
         """Get tool schema by name."""
@@ -55,8 +57,11 @@ class ToolHandler:
         name = tool_call.function.name
         call_id = tool_call.id
         
+        logger.debug(f"Executing tool: {name} (call_id: {call_id})")
+        
         handler = self.registry.get_handler(name)
         if not handler:
+            logger.warning(f"Unknown tool: {name}")
             return ToolResult(
                 call_id=call_id,
                 name=name,
@@ -66,7 +71,9 @@ class ToolHandler:
         
         try:
             args = json.loads(tool_call.function.arguments)
+            logger.debug(f"Tool arguments: {args}")
             result = handler(**args)
+            logger.info(f"Tool executed successfully: {name}", extra={"call_id": call_id})
             return ToolResult(
                 call_id=call_id,
                 name=name,
@@ -74,6 +81,7 @@ class ToolHandler:
                 success=True
             )
         except Exception as e:
+            logger.error(f"Tool execution failed: {name} - {str(e)}", extra={"call_id": call_id})
             return ToolResult(
                 call_id=call_id,
                 name=name,
@@ -85,16 +93,21 @@ class ToolHandler:
         """Execute multiple tool calls in parallel."""
         import concurrent.futures
         
+        logger.info(f"Executing {len(tool_calls)} tool calls in parallel")
+        
         results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(self.execute_tool_call, tc) for tc in tool_calls]
             for future in concurrent.futures.as_completed(futures):
                 results.append(future.result())
         
-        return sorted(results, key=lambda r: tool_calls.index(next(tc for tc in tool_calls if tc.id == r.call_id)))
+        sorted_results = sorted(results, key=lambda r: tool_calls.index(next(tc for tc in tool_calls if tc.id == r.call_id)))
+        logger.debug(f"Parallel execution completed: {len(sorted_results)} results", extra={"success_count": sum(1 for r in sorted_results if r.success)})
+        return sorted_results
     
     def build_tool_response_message(self, results: list[ToolResult]) -> dict:
         """Build the tool response message to append to conversation."""
+        logger.debug(f"Building response message for {len(results)} tool results")
         return {
             "role": "user",
             "content": [
